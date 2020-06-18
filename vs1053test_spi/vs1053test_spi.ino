@@ -4,6 +4,7 @@
 #define VS_XCS    6 // Control Chip Select Pin (for accessing SPI Control/Status registers)
 #define VS_XDCS   7 // Data Chip Select / BSYNC Pin
 #define VS_DREQ   2 // Data Request Pin: Player asks for more data
+#define SPI_SS    10 // Pin for enable SPI on some boards
 
 #define VS_RESET  8 //Reset is active low
 
@@ -50,6 +51,37 @@ void VSLoadUserCode(void) {
   }
 }
 
+void VS1053_Init_SPI_MIDI(){
+  
+  // Initialize SPI
+  pinMode(VS_DREQ, INPUT);
+  pinMode(VS_XCS, OUTPUT);
+  pinMode(VS_XDCS, OUTPUT);
+  pinMode(VS_RESET, OUTPUT);
+  digitalWrite(VS_XCS, HIGH); //Deselect Control
+  digitalWrite(VS_XDCS, HIGH); //Deselect Data
+
+
+  //Initialize VS1053 chip 
+  digitalWrite(VS_RESET, LOW); //Put VS1053 into hardware reset
+
+  //Setup SPI for VS1053
+  pinMode(SPI_SS, OUTPUT); // SS pin must be set as an output for the SPI communication to work
+  SPI.begin();
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setDataMode(SPI_MODE0);
+
+  //From page 12 of datasheet, max SCI reads are CLKI/7. Input clock is 12.288MHz. 
+  //Internal clock multiplier is 1.0x after power up. 
+  //Therefore, max SPI speed is 1.75MHz. We will use 1MHz to be safe.
+  SPI.setClockDivider(SPI_CLOCK_DIV16); //Set SPI bus speed to 1MHz (16MHz / 16 = 1MHz)
+  SPI.transfer(0xFF); //Throw a dummy byte at the bus
+
+  delayMicroseconds(1);
+  digitalWrite(VS_RESET, HIGH); //Bring up VS1053
+  VSLoadUserCode(); //Enable MIDI mode via SPI
+}
+
 // See http://www.vlsi.fi/fileadmin/datasheets/vs1053.pdf Pg 31
 #define VS1053_BANK_DEFAULT 0x00
 #define VS1053_BANK_DRUMS1 0x78
@@ -70,34 +102,8 @@ void setup() {
   Serial.begin(115200);
   Serial.println("VS1053 MIDI test");
 
-  // Initialize SPI
-  pinMode(VS_DREQ, INPUT);
-  pinMode(VS_XCS, OUTPUT);
-  pinMode(VS_XDCS, OUTPUT);
-  pinMode(VS_RESET, OUTPUT);
-  digitalWrite(VS_XCS, HIGH); //Deselect Control
-  digitalWrite(VS_XDCS, HIGH); //Deselect Data
-
-
-  //Initialize VS1053 chip 
-  digitalWrite(VS_RESET, LOW); //Put VS1053 into hardware reset
-
-  //Setup SPI for VS1053
-  pinMode(10, OUTPUT); //Pin 10 must be set as an output for the SPI communication to work
-  SPI.begin();
-  SPI.setBitOrder(MSBFIRST);
-  SPI.setDataMode(SPI_MODE0);
-
-  //From page 12 of datasheet, max SCI reads are CLKI/7. Input clock is 12.288MHz. 
-  //Internal clock multiplier is 1.0x after power up. 
-  //Therefore, max SPI speed is 1.75MHz. We will use 1MHz to be safe.
-  SPI.setClockDivider(SPI_CLOCK_DIV16); //Set SPI bus speed to 1MHz (16MHz / 16 = 1MHz)
-  SPI.transfer(0xFF); //Throw a dummy byte at the bus
-
-  delayMicroseconds(1);
-  digitalWrite(VS_RESET, HIGH); //Bring up VS1053
-  VSLoadUserCode(); //Enable MIDI mode via SPI
-
+  VS1053_Init_SPI_MIDI();
+  
   midiSetChannelBank(0, VS1053_BANK_DRUMS2);
   midiSetInstrument(0, VS1053_GM1_OCARINA);
   midiSetChannelVolume(0, 127);
@@ -177,9 +183,11 @@ void midiSetChannelBank(uint8_t chan, uint8_t bank) {
 
 
 
+// Loop starts here !!
+
 
 void loop() {
-  for (uint8_t i = 60; i < 69; i++) {
+  for (uint8_t i = 10; i < 127; i++) {
     midiNoteOn(0, i, 127);
     delay(100);
     Serial.println(i);
