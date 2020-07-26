@@ -2,12 +2,98 @@
 #include "Adafruit_TCS34725.h"
 #include <Adafruit_NeoPixel.h>
 #include "Flora_Pianoglove.h"
+#include <SPI.h>
 
-// define the pins used
-#define VS1053_RX  17 // This is the pin that connects to the RX pin on VS1053
-#define VS1053_RESET 19 // This is the pin that connects to the RESET pin on VS1053
-#define NEOPIXEL_PIN 5 // This is the pin that connects to the Neopixel.
-// Don't forget to connect the GPIO #0 to GROUND and GPIO #1 pin to 3.3V
+#define I2C_SDA 13
+#define I2C_SCL 15
+
+#define NEOPIXEL_PIN 14
+
+#define VS_XCS    26 // Control Chip Select Pin (for accessing SPI Control/Status registers)
+#define VS_XDCS   33 // Data Chip Select / BSYNC Pin
+#define VS_DREQ   32 // Data Request Pin: Player asks for more data
+#define SPI_SS    5 // Pin for enable SPI on some boards
+
+#define VS_RESET  25 //Reset is active low
+
+// I2C Init
+TwoWire I2C_BUS = TwoWire(0);
+
+// Based on https://gist.github.com/microtherion/2636608 (MP3_Shield_RealtimeMIDI.ino from Matthias Neeracher)
+
+//Write to VS10xx register
+//SCI: Data transfers are always 16bit. When a new SCI operation comes in 
+//DREQ goes low. We then have to wait for DREQ to go high again.
+//XCS should be low for the full duration of operation.
+void VSWriteRegister(unsigned char addressbyte, unsigned char highbyte, unsigned char lowbyte){
+  while(!digitalRead(VS_DREQ)) ; //Wait for DREQ to go high indicating IC is available
+  digitalWrite(VS_XCS, LOW); //Select control
+
+  //SCI consists of instruction byte, address byte, and 16-bit data word.
+  SPI.transfer(0x02); //Write instruction
+  SPI.transfer(addressbyte);
+  SPI.transfer(highbyte);
+  SPI.transfer(lowbyte);
+  while(!digitalRead(VS_DREQ)) ; //Wait for DREQ to go high indicating command is complete
+  digitalWrite(VS_XCS, HIGH); //Deselect Control
+}
+
+//
+// Plugin to put VS10XX into realtime MIDI mode
+// Originally from http://www.vlsi.fi/fileadmin/software/VS10XX/vs1053b-rtmidistart.zip
+// Permission to reproduce here granted by VLSI solution.
+//
+const unsigned short sVS1053b_Realtime_MIDI_Plugin[28] = { /* Compressed plugin */
+  0x0007, 0x0001, 0x8050, 0x0006, 0x0014, 0x0030, 0x0715, 0xb080, /*    0 */
+  0x3400, 0x0007, 0x9255, 0x3d00, 0x0024, 0x0030, 0x0295, 0x6890, /*    8 */
+  0x3400, 0x0030, 0x0495, 0x3d00, 0x0024, 0x2908, 0x4d40, 0x0030, /*   10 */
+  0x0200, 0x000a, 0x0001, 0x0050,
+};
+
+void VSLoadUserCode(void) {
+  int i = 0;
+
+  while (i<sizeof(sVS1053b_Realtime_MIDI_Plugin)/sizeof(sVS1053b_Realtime_MIDI_Plugin[0])) {
+    unsigned short addr, n, val;
+    addr = sVS1053b_Realtime_MIDI_Plugin[i++];
+    n = sVS1053b_Realtime_MIDI_Plugin[i++];
+    while (n--) {
+      val = sVS1053b_Realtime_MIDI_Plugin[i++];
+      VSWriteRegister(addr, val >> 8, val & 0xFF);
+    }
+  }
+}
+
+void VS1053_Init_SPI_MIDI(){
+  
+  // Initialize SPI
+  pinMode(VS_DREQ, INPUT);
+  pinMode(VS_XCS, OUTPUT);
+  pinMode(VS_XDCS, OUTPUT);
+  pinMode(VS_RESET, OUTPUT);
+  digitalWrite(VS_XCS, HIGH); //Deselect Control
+  digitalWrite(VS_XDCS, HIGH); //Deselect Data
+
+
+  //Initialize VS1053 chip 
+  digitalWrite(VS_RESET, LOW); //Put VS1053 into hardware reset
+
+  //Setup SPI for VS1053
+  pinMode(SPI_SS, OUTPUT); // SS pin must be set as an output for the SPI communication to work
+  SPI.begin();
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setDataMode(SPI_MODE0);
+
+  //From page 12 of datasheet, max SCI reads are CLKI/7. Input clock is 12.288MHz. 
+  //Internal clock multiplier is 1.0x after power up. 
+  //Therefore, max SPI speed is 1.75MHz. We will use 1MHz to be safe.
+  SPI.setClockDivider(SPI_CLOCK_DIV16); //Set SPI bus speed to 1MHz (16MHz / 16 = 1MHz)
+  SPI.transfer(0xFF); //Throw a dummy byte at the bus
+
+  delayMicroseconds(1);
+  digitalWrite(VS_RESET, HIGH); //Bring up VS1053
+  VSLoadUserCode(); //Enable MIDI mode via SPI
+}
 
 // See http://www.vlsi.fi/fileadmin/datasheets/vs1053.pdf Pg 31
 #define VS1053_BANK_DEFAULT 0x00
@@ -44,6 +130,16 @@
 #define MIDI_CHAN_VOLUME 0x07
 #define MIDI_CHAN_PROGRAM 0xC0
 
+#define MIDI_NOTE_ON  0x90
+#define MIDI_NOTE_OFF 0x80
+#define MIDI_CHAN_MSG 0xB0
+#define MIDI_CHAN_BANK 0x00
+#define MIDI_CHAN_VOLUME 0x07
+#define MIDI_CHAN_PROGRAM 0xC0
+
+/*End VS1053 */
+
+
 // we only play a note when the clear response is higher than a certain number 
 //#define CLEARTHRESHHOLD 2000 
 #define CLEARTHRESHHOLD 100 
@@ -53,6 +149,7 @@
 //#define LOWKEY 52   // octave lower than high C? 
 //#define LOWKEY 64   // high C
 #define HIGHKEY 76  // double high C
+
 
 // our RGB -> eye-recognized gamma color
 byte gammatable[256];
@@ -68,11 +165,13 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ80
 
 void setup() {
   
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Piano Glove MIDI!");
 
+  // I2C Init
+  I2C_BUS.begin(I2C_SDA, I2C_SCL, 100000);
   //Check for color sensor
-  if (tcs.begin()) {
+  if (tcs.begin(0x29,&I2C_BUS)) {
     Serial.println("Found sensor");
   } 
   else {
@@ -85,12 +184,10 @@ void setup() {
   strip.show(); // Initialize all pixels to 'off'
 
   //Start MIDI
-  Serial2.begin(31250); // MIDI uses a 'strange baud rate'
-  pinMode(VS1053_RESET, OUTPUT);
-  digitalWrite(VS1053_RESET, LOW);
-  delay(10);
-  digitalWrite(VS1053_RESET, HIGH);
-  delay(10);
+  Serial.begin(115200);
+  Serial.println("VS1053 MIDI test");
+
+  VS1053_Init_SPI_MIDI();
   //midiSetChannelBank(0, VS1053_BANK_MELODY);
   //midiSetInstrument(0, VS1053_GM1_BASSANDLEAD); //wierd
   //midiSetInstrument(0, VS1053_GM1_ACOUSTICGRANDPIANO); //OK but try other pianos
@@ -364,50 +461,74 @@ HsvColor RgbToHsv(RgbColor rgb){
 }
 
 
+void sendMIDI(byte data)
+{
+  SPI.transfer(0);
+  SPI.transfer(data);
+}
+
+//Plays a MIDI note. Doesn't check to see that cmd is greater than 127, or that data values are less than 127
+void talkMIDI(byte cmd, byte data1, byte data2) {
+  //
+  // Wait for chip to be ready (Unlikely to be an issue with real time MIDI)
+  //
+  while (!digitalRead(VS_DREQ))
+    ;
+  digitalWrite(VS_XDCS, LOW);
+  sendMIDI(cmd);
+  //Some commands only have one data byte. All cmds less than 0xBn have 2 data bytes 
+  //(sort of: http://253.ccarh.org/handout/midiprotocol/)
+  if( (cmd & 0xF0) <= 0xB0 || (cmd & 0xF0) >= 0xE0) {
+    sendMIDI(data1);
+    sendMIDI(data2);
+  } else {
+    sendMIDI(data1);
+  }
+
+  digitalWrite(VS_XDCS, HIGH);
+}
+
+//Send a MIDI note-on message.  Like pressing a piano key
+//channel ranges from 0-15
+void midiNoteOn(byte channel, byte note, byte attack_velocity) {
+  if (channel > 15) return;
+  if (note > 127) return;
+  if (attack_velocity > 127) return;
+  talkMIDI( (0x90 | channel), note, attack_velocity);
+}
+
+//Send a MIDI note-off message.  Like releasing a piano key
+void midiNoteOff(byte channel, byte note, byte release_velocity) {
+  if (channel > 15) return;
+  if (note > 127) return;
+  if (release_velocity > 127) return;
+  talkMIDI( (0x80 | channel), note, release_velocity);
+}
+
 void midiSetInstrument(uint8_t chan, uint8_t inst) {
   if (chan > 15) return;
   inst --; // page 32 has instruments starting with 1 not 0 :(
   if (inst > 127) return;
-  
-  Serial2.write(MIDI_CHAN_PROGRAM | chan);  
-  Serial2.write(inst);
+
+  sendMIDI(MIDI_CHAN_PROGRAM | chan);
+  sendMIDI(inst);
 }
 
 
 void midiSetChannelVolume(uint8_t chan, uint8_t vol) {
   if (chan > 15) return;
   if (vol > 127) return;
-  
-  Serial2.write(MIDI_CHAN_MSG | chan);
-  Serial2.write(MIDI_CHAN_VOLUME);
-  Serial2.write(vol);
+
+  sendMIDI(MIDI_CHAN_MSG | chan);
+  sendMIDI(MIDI_CHAN_VOLUME);
+  sendMIDI(vol);
 }
 
 void midiSetChannelBank(uint8_t chan, uint8_t bank) {
   if (chan > 15) return;
   if (bank > 127) return;
-  
-  Serial2.write(MIDI_CHAN_MSG | chan);
-  Serial2.write((uint8_t)MIDI_CHAN_BANK);
-  Serial2.write(bank);
-}
 
-void midiNoteOn(uint8_t chan, uint8_t n, uint8_t vel) {
-  if (chan > 15) return;
-  if (n > 127) return;
-  if (vel > 127) return;
-  
-  Serial2.write(MIDI_NOTE_ON);
-  Serial2.write(n);
-  Serial2.write(vel);
-}
-
-void midiNoteOff(uint8_t chan, uint8_t n, uint8_t vel) {
-  if (chan > 15) return;
-  if (n > 127) return;
-  if (vel > 127) return;
-  
-  Serial2.write(MIDI_NOTE_OFF | chan);
-  Serial2.write(n);
-  Serial2.write(vel);
+  sendMIDI(MIDI_CHAN_MSG | chan);
+  sendMIDI((uint8_t)MIDI_CHAN_BANK);
+  sendMIDI(bank);
 }
