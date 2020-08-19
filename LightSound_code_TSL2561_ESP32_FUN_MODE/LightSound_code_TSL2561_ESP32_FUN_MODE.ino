@@ -7,6 +7,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_TSL2561_U.h>
 #include "SPIFFS.h"
+#include "Player.h"
 #include <SPI.h>
 
 #define I2C_SDA 13
@@ -20,6 +21,17 @@
 #define SPI_SS    5 // Pin for enable SPI on some boards
 
 #define VS_RESET  25 //Reset is active low
+
+#define ESP32_BUTTON 14 //To change mode
+
+
+// To change mode
+int mode_lightsound = 0;
+int old_value = 0;
+
+// The band
+Player player;
+
 
 // I2C Init
 TwoWire I2C_BUS = TwoWire(0);
@@ -280,9 +292,15 @@ void setup() {
   //Start MIDI
   VS1053_Init_SPI_MIDI();
  
+  //Preparing the band to play
   midiSetChannelBank(0, VS1053_BANK_MELODY); // sets melody channel for MIDI board
   midiSetInstrument(0, VS1053_GM1_CLARINET); // sets clarinet sound for MIDI instrument
   midiSetChannelVolume(0, 127);              // sets volume -- able to change volume
+  player.add_instrument("/synth_1.inst");
+  player.add_instrument("/synth_2.inst");
+  player.add_instrument("/synth_3.inst");
+  player.add_instrument("/synth_4.inst");
+  player.add_drums("/percussion.inst");
 }
 
 /**************************************************************************/
@@ -355,12 +373,30 @@ void configureSensor(void)
 
 void loop(){
   /* Get a new sensor event */ 
-  advancedPlayNoteBending(0);
-  //lvl = advancedLightSensorRead();
+  sendMIDI(0x50 | 0x90 | 0x26 | 0x3C);
+  int valorPulsador = digitalRead(ESP32_BUTTON);
+  if (valorPulsador == 1 && old_value == 0){
+      Serial.println(valorPulsador);
+      mode_lightsound = ++mode_lightsound % 2;
+      old_value = 1;
+      sendMIDI(0xb0);
+      sendMIDI(0x7b);
+      sendMIDI(0x7c);
+      sendMIDI(0x7d);
+  }
+  else if (valorPulsador == 0 && old_value == 1)
+      old_value = 0;
+  //advancedPlayNoteBending(0);
+  int delta_trash = millis();
+  lvl = advancedLightSensorRead();
+  delta_trash = millis() - delta_trash;
+  Serial.print("Delta Trash: ");
+  Serial.println(delta_trash);
   
   /* Play the corresponding note to the lux */
-   //advancedPlayNoteBending(lvl);
+  advancedPlayNoteBending(lvl, delta_trash);
 }
+
 
 
 /**************************************************************************/      
@@ -435,13 +471,19 @@ float advancedLightSensorRead(void)
 /* *********** */
 
 // definition for "play note" function
-void advancedPlayNoteBending(float lvl) {
+void advancedPlayNoteBending(float lvl, int delta_trash) {
+  if (mode_lightsound == 0){
+    player.play(lvl, delta_trash);
+  }
+  else
+     oldAdvancedPlayNoteBending(lvl);
+  if (1==0){
   if(!SPIFFS.begin(true)){
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
   
-  File file = SPIFFS.open("/percussion.inst");
+  File file = SPIFFS.open("/synth_1.inst");
   if(!file){
     Serial.println("Failed to open file for reading");
     return;
@@ -472,7 +514,7 @@ void advancedPlayNoteBending(float lvl) {
       Serial.print(", ");
       Serial.println(delta);
       delay((int)(delta * fact));
-      midiSetChannelBank(0, VS1053_BANK_DRUMS2);
+      midiSetChannelBank(0, VS1053_BANK_MELODY);
       midiSetInstrument(0, 27);
       if (type == 1)
           midiNoteOn(0, note, velocity);
@@ -481,6 +523,7 @@ void advancedPlayNoteBending(float lvl) {
     }while(delta == 0);
   }
   file.close();
+  }
 
 
   //midiSetChannelBank(0, VS1053_BANK_DRUMS2);
@@ -496,10 +539,10 @@ void advancedPlayNoteBending(float lvl) {
 
 
   //if (lvl > -1){
-  midiSetChannelBank(0, VS1053_BANK_MELODY);
-  midiSetInstrument(0, 27);
+  //midiSetChannelBank(0, VS1053_BANK_MELODY);
+  //midiSetInstrument(0, 27);
   //if (synth_2_array[ind_global] != 0)
-  midiNoteOn(0, percussion_array[ind_global], percussion_velocity_array[ind_global]);
+  //midiNoteOn(0, percussion_array[ind_global], percussion_velocity_array[ind_global]);
   //midiSetInstrument(0, 55);
   //if (array2[ind_global] != 0)
   //  midiNoteOn(0, array2[ind_global], 50);
@@ -507,10 +550,11 @@ void advancedPlayNoteBending(float lvl) {
 
   //delay(10);
   //midiNoteOff(0, percussion_array[ind_global], 0);
-  delay(percussion_time_array[ind_global + 1]);
-  midiNoteOff(0, percussion_array[ind_global], 0);
-  ind_global++;
+  //delay(percussion_time_array[ind_global + 1]);
+  //midiNoteOff(0, percussion_array[ind_global], 0);
+  //ind_global++;
 }
+
 
 
 // definition for float map function 
@@ -621,4 +665,143 @@ void pitchBendChange(byte channel, int value) {
   sendMIDI(0xE0 | channel);
   sendMIDI(lowValue);
   sendMIDI(highValue);
+}
+
+void oldAdvancedPlayNoteBending(float lvl) {
+  if (lvl < 61 & lvl >= 0){
+    //stop last note played
+    if (noteCase == 1) {
+      midiNoteOff(0, prevNote, 100);
+    }
+
+    else if (noteCase == 2) {
+      midiNoteOff(0, prevNote, 62);
+    }
+
+    lvlInt = round(lvl);
+    delayTime = 1000/lvl;
+    delayTimeInt = round(delayTime);
+
+    midiSetChannelBank(0, VS1053_BANK_DRUMS1);
+    midiSetInstrument(0, VS1053_GM1_SQUARE_CLICK);
+
+    if (lvlInt > 0) {
+      for (int count = 0; count < lvlInt; count++) {
+        midiNoteOn(0, 69, 127);
+        delay(5);
+        midiNoteOff(0, 69, 127);
+        delay(delayTimeInt);
+      }
+    }
+
+    else if (lvlInt == 0 & lvl > 0){
+      midiNoteOn(0, 69, 127);
+      delay(5);
+      midiNoteOff(0, 69, 127);
+      delay(2000);
+    }
+   
+   noteCase = 0;
+   prevLvlInt = lvlInt;
+  }
+
+  else if (lvl >= 61) {
+    if (lvl <= 10000) {
+      float nFloat = mapfloat(lvl,61,10000,35,81);
+      
+      //extract decimal
+      int nInt = nFloat;
+      String stringval = String(nFloat);
+      String mantissa = stringval.substring(stringval.lastIndexOf(".") + 1, stringval.lastIndexOf(".") + 2);
+      int decimalInt = mantissa.toInt();
+      int decMap = map(decimalInt,0,10,8192,16383);        
+
+      if (nInt == prevNote & noteCase == 1) return;
+    
+      if (nInt == -1 & noteCase == 1){
+        midiNoteOff(0, prevNote, 100);
+      }
+
+      else if (nInt == -1 & noteCase == 2){
+        midiNoteOff(0, prevNote, 62);
+      }
+    
+      //stop last note played
+      if (noteCase == 1){
+        midiNoteOff(0, prevNote, 100);
+      }
+
+      else if (noteCase == 2){
+        midiNoteOff(0, prevNote, 62);
+      }
+
+      //play new note with bend
+      midiSetChannelBank(0, VS1053_BANK_MELODY);
+      midiSetInstrument(0, VS1053_GM1_CLARINET);
+      midiNoteOn(0, nInt, 100);
+      pitchBendChange(0,decMap);     
+
+      prevNote = nInt;
+      noteCase = 1;
+    }
+    
+    else {   
+      float nHighFloat = mapfloat(lvl,10000,131072,81,90);
+      
+      //extract decimal
+      int nHighInt = nHighFloat;
+      String stringvalHigh = String(nHighFloat);
+      String mantissaHigh = stringvalHigh.substring(stringvalHigh.lastIndexOf(".") + 1, stringvalHigh.lastIndexOf(".") + 2);
+      int decimalIntHigh = mantissaHigh.toInt();
+      int decMapHigh = map(decimalIntHigh,0,10,8192,16383);
+
+      if (nHighInt == prevNote & noteCase == 2) return;
+   
+      if (nHighInt == -1 & noteCase == 1){
+        midiNoteOff(0, prevNote, 100);
+      }
+
+      else if (nHighInt == -1 & noteCase == 2){
+        midiNoteOff(0, prevNote, 62);
+      }
+
+      if (noteCase == 1){
+        midiNoteOff(0, prevNote, 100);
+      }
+
+      else if (noteCase == 2){
+        midiNoteOff(0, prevNote, 62);
+      }
+      
+      midiSetChannelBank(0, VS1053_BANK_MELODY);
+      midiSetInstrument(0, VS1053_GM1_FLUTE);
+      midiNoteOn(0, nHighInt, 62);
+      pitchBendChange(0,decMapHigh);
+      delay(500);
+
+      prevNote = nHighInt;
+      noteCase = 2;
+    } 
+  }
+
+  else if (lvl < -5){
+    if (noteCase == 1){
+        midiNoteOff(0, prevNote, 100);
+      }
+
+    if (noteCase == 2){
+        midiNoteOff(0, prevNote, 62);
+      }
+
+    midiSetChannelBank(0, VS1053_BANK_MELODY);
+    midiSetInstrument(0, VS1053_GM1_ACOUSTICBASS);
+
+    midiNoteOn(0, 90, 88);
+    pitchBendChange(0,8192);
+    delay(500);
+    midiNoteOff(0, 90, 88);
+    delay(1000);
+    noteCase = 3;
+    
+  }
 }
