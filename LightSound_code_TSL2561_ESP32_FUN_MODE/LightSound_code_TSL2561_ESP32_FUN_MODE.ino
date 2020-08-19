@@ -373,7 +373,7 @@ void configureSensor(void)
 
 void loop(){
   /* Get a new sensor event */ 
-  sendMIDI(0x50 | 0x90 | 0x26 | 0x3C);
+  //sendMIDI(0x50 | 0x90 | 0x26 | 0x3C);
   int valorPulsador = digitalRead(ESP32_BUTTON);
   if (valorPulsador == 1 && old_value == 0){
       Serial.println(valorPulsador);
