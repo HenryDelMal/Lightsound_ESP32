@@ -7,6 +7,23 @@
 #include "Arduino.h"
 #include "Instrument.h"
 #include "SPIFFS.h"
+#include <SPI.h>
+
+#define VS_XCS    26 // Control Chip Select Pin (for accessing SPI Control/Status registers)
+#define VS_XDCS   33 // Data Chip Select / BSYNC Pin
+#define VS_DREQ   32 // Data Request Pin: Player asks for more data
+#define SPI_SS    5 // Pin for enable SPI on some boards
+
+#define VS_RESET  25 //Reset is active low
+
+// more channel messages
+#define MIDI_NOTE_ON  0x90     // note on
+#define MIDI_NOTE_OFF 0x80     // note off
+#define MIDI_CHAN_MSG 0xB0     // parameter (not sure what this does)
+#define MIDI_CHAN_BANK 0x00    // calling in the default bank?
+#define MIDI_CHAN_VOLUME 0x07  // channel volume
+#define MIDI_CHAN_PROGRAM 0xC0 // program (not sure exactly what this does)
+#define MIDI_CHAN_PITCH_WHEEL 0xE0 //pitch wheel
 
 
 Instrument::Instrument()
@@ -115,8 +132,8 @@ void Instrument::amidiSetInstrument(uint8_t chan, uint8_t inst) {
   inst --; // page 32 has instruments starting with 1 not 0 :(
   if (inst > 127) return;
 
-  Serial2.write(0xC0 | chan);
-  Serial2.write(inst);
+  sendMIDI(MIDI_CHAN_PROGRAM | chan);
+  sendMIDI(inst);
 }
 
 // definition for MDID volume function
@@ -124,9 +141,9 @@ void Instrument::amidiSetChannelVolume(uint8_t chan, uint8_t vol) {
   if (chan > 15) return;
   if (vol > 127) return;
 
-  Serial2.write(0xB0 | chan);
-  Serial2.write(0x07);
-  Serial2.write(vol);
+  sendMIDI(MIDI_CHAN_MSG | chan);
+  sendMIDI(MIDI_CHAN_VOLUME);
+  sendMIDI(vol);
 }
 
 // definition for MIDI bank function (i.e. default v.s. drums v.s. melodic?)
@@ -134,9 +151,9 @@ void Instrument::amidiSetChannelBank(uint8_t chan, uint8_t bank) {
   if (chan > 15) return;
   if (bank > 127) return;
 
-  Serial2.write(0xB0 | chan);
-  Serial2.write((uint8_t)0x00);
-  Serial2.write(bank);
+  sendMIDI(MIDI_CHAN_MSG | chan);
+  sendMIDI((uint8_t)MIDI_CHAN_BANK);
+  sendMIDI(bank);
 }
 
 // definition for MIDI "note on" function
@@ -144,10 +161,7 @@ void Instrument::amidiNoteOn(uint8_t chan, uint8_t n, uint8_t vel) {
   if (chan > 15) return;
   if (n > 127) return;
   if (vel > 127) return;
-
-  Serial2.write(0x90 | chan);
-  Serial2.write(n);
-  Serial2.write(vel);
+  talkMIDI( (0x90 | chan), n, vel);
 }
 
 // definition for MIDI "note off" function
@@ -155,8 +169,32 @@ void Instrument::amidiNoteOff(uint8_t chan, uint8_t n, uint8_t vel) {
   if (chan > 15) return;
   if (n > 127) return;
   if (vel > 127) return;
+  talkMIDI( (0x80 | chan), n, vel);
+}
 
-  Serial2.write(0x80 | chan);
-  Serial2.write(n);
-  Serial2.write(vel);
+void Instrument::sendMIDI(byte data)
+{
+  SPI.transfer(0);
+  SPI.transfer(data);
+}
+
+//Plays a MIDI note. Doesn't check to see that cmd is greater than 127, or that data values are less than 127
+void Instrument::talkMIDI(byte cmd, byte data1, byte data2) {
+  //
+  // Wait for chip to be ready (Unlikely to be an issue with real time MIDI)
+  //
+  while (!digitalRead(VS_DREQ))
+    ;
+  digitalWrite(VS_XDCS, LOW);
+  sendMIDI(cmd);
+  //Some commands only have one data byte. All cmds less than 0xBn have 2 data bytes 
+  //(sort of: http://253.ccarh.org/handout/midiprotocol/)
+  if( (cmd & 0xF0) <= 0xB0 || (cmd & 0xF0) >= 0xE0) {
+    sendMIDI(data1);
+    sendMIDI(data2);
+  } else {
+    sendMIDI(data1);
+  }
+
+  digitalWrite(VS_XDCS, HIGH);
 }

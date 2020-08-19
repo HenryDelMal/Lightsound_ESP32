@@ -9,6 +9,7 @@
 
 #include "Arduino.h"
 #include "SPIFFS.h"
+#include <SPI.h>
 
 
 
@@ -32,6 +33,8 @@ class Instrument
         void amidiSetChannelBank(uint8_t chan, uint8_t bank);
         void amidiNoteOn(uint8_t chan, uint8_t n, uint8_t vel);
         void amidiNoteOff(uint8_t chan, uint8_t n, uint8_t vel);
+        void talkMIDI(byte cmd, byte data1, byte data2);
+        void sendMIDI(byte data);
 
     private:
         uint8_t _channel;
