@@ -379,10 +379,11 @@ void loop(){
       Serial.println(valorPulsador);
       mode_lightsound = ++mode_lightsound % 2;
       old_value = 1;
-      sendMIDI(0xb0);
-      sendMIDI(0x7b);
-      sendMIDI(0x7c);
-      sendMIDI(0x7d);
+      //sendMIDI(0xb0);
+      //sendMIDI(0x7b);
+      //sendMIDI(0x7c);
+      //sendMIDI(0x7d);
+      talkMIDI(0xb0, 0x7b, 0x00);
   }
   else if (valorPulsador == 0 && old_value == 1)
       old_value = 0;
@@ -622,13 +623,9 @@ void midiNoteOff(byte channel, byte note, byte release_velocity) {
   talkMIDI( (0x80 | channel), note, release_velocity);
 }
 
-void midiSetInstrument(uint8_t chan, uint8_t inst) {
-  if (chan > 15) return;
+void midiSetInstrument(byte chan, byte inst) {
   inst --; // page 32 has instruments starting with 1 not 0 :(
-  if (inst > 127) return;
-
-  sendMIDI(MIDI_CHAN_PROGRAM | chan);
-  sendMIDI(inst);
+  talkMIDI(MIDI_CHAN_PROGRAM | chan, inst, 0);
 }
 
 
@@ -641,13 +638,12 @@ void midiSetChannelVolume(uint8_t chan, uint8_t vol) {
   sendMIDI(vol);
 }
 
-void midiSetChannelBank(uint8_t chan, uint8_t bank) {
-  if (chan > 15) return;
-  if (bank > 127) return;
+void midiSetChannelBank(byte chan, byte bank) {
 
-  sendMIDI(MIDI_CHAN_MSG | chan);
-  sendMIDI((uint8_t)MIDI_CHAN_BANK);
-  sendMIDI(bank);
+  //sendMIDI((uint8_t)MIDI_CHAN_BANK);
+  //sendMIDI();
+  talkMIDI(MIDI_CHAN_MSG | chan, 0, bank); 
+
 }
 
 // definition for MIDI "note bend" function
@@ -681,7 +677,9 @@ void oldAdvancedPlayNoteBending(float lvl) {
     lvlInt = round(lvl);
     delayTime = 1000/lvl;
     delayTimeInt = round(delayTime);
-
+    
+    //talkMIDI(0xB0, 0, VS1053_BANK_DRUMS1); //Bank select: drums
+    //talkMIDI(0xC0, VS1053_GM1_SQUARE_CLICK, 0); //Set instrument number
     midiSetChannelBank(0, VS1053_BANK_DRUMS1);
     midiSetInstrument(0, VS1053_GM1_SQUARE_CLICK);
 
@@ -736,6 +734,8 @@ void oldAdvancedPlayNoteBending(float lvl) {
       }
 
       //play new note with bend
+      //talkMIDI(0xB0, 0, VS1053_BANK_MELODY);
+      //talkMIDI(0xC0, VS1053_GM1_CLARINET, 0);
       midiSetChannelBank(0, VS1053_BANK_MELODY);
       midiSetInstrument(0, VS1053_GM1_CLARINET);
       midiNoteOn(0, nInt, 100);
@@ -775,6 +775,8 @@ void oldAdvancedPlayNoteBending(float lvl) {
       
       midiSetChannelBank(0, VS1053_BANK_MELODY);
       midiSetInstrument(0, VS1053_GM1_FLUTE);
+      //talkMIDI(0xB0, 0, VS1053_BANK_MELODY);
+      //talkMIDI(0xC0, VS1053_GM1_FLUTE, 0);
       midiNoteOn(0, nHighInt, 62);
       pitchBendChange(0,decMapHigh);
       delay(500);
@@ -793,8 +795,10 @@ void oldAdvancedPlayNoteBending(float lvl) {
         midiNoteOff(0, prevNote, 62);
       }
 
-    midiSetChannelBank(0, VS1053_BANK_MELODY);
-    midiSetInstrument(0, VS1053_GM1_ACOUSTICBASS);
+    //midiSetChannelBank(0, VS1053_BANK_MELODY);
+    //midiSetInstrument(0, VS1053_GM1_ACOUSTICBASS);
+    talkMIDI(0xB0, 0, VS1053_BANK_MELODY);
+    talkMIDI(0xC0, VS1053_GM1_ACOUSTICBASS, 0);
 
     midiNoteOn(0, 90, 88);
     pitchBendChange(0,8192);
