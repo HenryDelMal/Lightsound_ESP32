@@ -3,6 +3,11 @@
 #include <Adafruit_NeoPixel.h>
 #include "Flora_Pianoglove.h"
 #include <SPI.h>
+#include "VS1053.h"
+#include "SPIFFS.h"
+
+
+
 
 #define I2C_SDA 13
 #define I2C_SCL 15
@@ -16,8 +21,29 @@
 
 #define VS_RESET  25 //Reset is active low
 
+#define VOLUME  100 // volume level 0-100
+
 // I2C Init
+int mode_lightsound = 1;
 TwoWire I2C_BUS = TwoWire(0);
+VS1053 player(VS_XCS, VS_XDCS, VS_DREQ);
+char* amarillo;
+char* azul;
+char* blanco;
+char* cafe;
+char* cian;
+char* gris;
+char* magenta;
+char* naranja; 
+char* negro;
+char* rojo;
+char* verde;
+char* violeta;
+
+int amarillo_size, azul_size, blanco_size, cafe_size, cian_size, gris_size;
+int magenta_size, naranja_size, negro_size, rojo_size, verde_size, violeta_size;
+
+
 
 // Based on https://gist.github.com/microtherion/2636608 (MP3_Shield_RealtimeMIDI.ino from Matthias Neeracher)
 
@@ -92,7 +118,7 @@ void VS1053_Init_SPI_MIDI(){
 
   delayMicroseconds(1);
   digitalWrite(VS_RESET, HIGH); //Bring up VS1053
-  VSLoadUserCode(); //Enable MIDI mode via SPI
+  //VSLoadUserCode(); //Enable MIDI mode via SPI
 }
 
 // See http://www.vlsi.fi/fileadmin/datasheets/vs1053.pdf Pg 31
@@ -164,8 +190,21 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ80
 
 
 void setup() {
-  
   Serial.begin(115200);
+
+  amarillo_size = read_file(amarillo, "/Amarillo.mp3");
+  azul_size = read_file(azul, "/Azul.mp3");
+  blanco_size = read_file(blanco, "/Blanco.mp3");
+  cafe_size = read_file(cafe, "/Café.mp3");
+  azul_size = read_file(azul, "/Azul.mp3");
+  cian_size = read_file(cian, "/Cian.mp3");
+  gris_size = read_file(gris, "/Gris.mp3");
+  magenta_size = read_file(magenta, "/Magenta.mp3");
+  naranja_size = read_file(naranja, "/Naranja.mp3");
+  negro_size = read_file(negro, "/Negro.mp3");
+  rojo_size = read_file(rojo, "/Rojo.mp3");
+  verde_size = read_file(verde, "/Verde.mp3");
+  violeta_size = read_file(violeta, "/Violeta.mp3");
   Serial.println("Piano Glove MIDI!");
 
   // I2C Init
@@ -184,14 +223,15 @@ void setup() {
   strip.show(); // Initialize all pixels to 'off'
 
   //Start MIDI
-  Serial.begin(115200);
   Serial.println("VS1053 MIDI test");
-
   VS1053_Init_SPI_MIDI();
+
+  initMP3Player();
+
   //midiSetChannelBank(0, VS1053_BANK_MELODY);
   //midiSetInstrument(0, VS1053_GM1_BASSANDLEAD); //wierd
   //midiSetInstrument(0, VS1053_GM1_ACOUSTICGRANDPIANO); //OK but try other pianos
-  midiSetInstrument(0, VS1053_GM1_BRIGHTACOUSTICPIANO); //Acoustic Grand Piano (#1) better; too much reverb
+  //midiSetInstrument(0, VS1053_GM1_BRIGHTACOUSTICPIANO); //Acoustic Grand Piano (#1) better; too much reverb
   //midiSetInstrument(0, VS1053_GM1_ACCORDION); //Sounds like the Adams Family theme song
   //midiSetInstrument(0, VS1053_GM1_ELECTRICGUITARCLEAN); //OK; not great
   //midiSetInstrument(0, VS1053_GM1_ACOUSTICGUITARNYLON);
@@ -204,7 +244,7 @@ void setup() {
   //midiSetInstrument(0, VS1053_GM1_BASSOON); //Annoying!
   //midiSetInstrument(0, 16); //Dulcimer - No; Annoying as well.
   
-  midiSetChannelVolume(0, 127);
+  //midiSetChannelVolume(0, 127);
 
   // thanks PhilB for this gamma table!
   // it helps convert RGB colors to what humans see
@@ -345,7 +385,13 @@ void loop() {
     Serial.print("Freq = "); Serial.println(freq); 
     Serial.println(" "); 
   //Serial.print((int)r ); Serial.print(" "); Serial.print((int)g);Serial.print(" ");  Serial.println((int)b );
-  playNote(keynum);
+  if(mode_lightsound == 0) 
+      playNote(keynum);
+  else{
+      Serial.print("Trying: "); 
+      Serial.println(freq); 
+      readColor(freq);
+  }
 }
 
 
@@ -531,4 +577,96 @@ void midiSetChannelBank(uint8_t chan, uint8_t bank) {
   sendMIDI(MIDI_CHAN_MSG | chan);
   sendMIDI((uint8_t)MIDI_CHAN_BANK);
   sendMIDI(bank);
+}
+
+void readColor(float freq) {
+  if (freq >= 1300)
+    player.playChunk((unsigned char *)violeta, violeta_size);
+  else if (freq >= 1100)
+    player.playChunk((unsigned char *)azul, azul_size);
+  else if (freq >= 900)
+    player.playChunk((unsigned char *)cian, cian_size);
+  else if (freq >= 850)
+    player.playChunk((unsigned char *)negro, negro_size);
+  else if (freq >= 820)
+    player.playChunk((unsigned char *)blanco, blanco_size);
+  else if (freq >= 750)
+    player.playChunk((unsigned char *)gris, gris_size);
+  else if (freq >= 650)
+    player.playChunk((unsigned char *)verde, verde_size);
+  else if (freq >= 370)
+    player.playChunk((unsigned char *)amarillo, amarillo_size);
+  else if (freq >= 280)
+    player.playChunk((unsigned char *)naranja, naranja_size);
+  else if (freq >= 270)
+    player.playChunk((unsigned char *)cafe, cafe_size);
+  else if (freq >= 260)
+    player.playChunk((unsigned char *)rojo, rojo_size);
+     
+
+}
+
+void initMP3Player(){
+
+    // initialize SPI
+    //SPI.begin();
+
+    // initialize a player
+    //player.begin();
+    player.switchToMp3Mode(); // optional, some boards require this
+
+    player.setVolume(VOLUME);
+    Serial.println("Hello VS1053!\n");
+
+ 
+
+   /*    
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+  File file = SPIFFS.open("/Blanco.mp3");
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+
+  
+  if (file.available()) {
+    char dataArray[file.size()];
+    file.readBytes(dataArray, file.size());
+    player.playChunk((unsigned char *)dataArray, sizeof(dataArray));
+    
+   
+  }
+  file.close();
+  */
+}
+
+int read_file(char * &color, char* colorName){
+  int ret = 0;
+  Serial.println(colorName);
+  
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return 0;
+  }
+  File file = SPIFFS.open(colorName);
+  if (!file) {
+    Serial.println("Failed to open file for reading");
+    return 0;
+  }
+
+  if (file.available()) {
+    color = (char *)malloc(sizeof(*color) * file.size());
+    Serial.println(file.size());
+
+    file.readBytes(color, file.size());
+    ret = file.size();
+   
+  }
+  file.close();
+
+  return ret;
+
 }

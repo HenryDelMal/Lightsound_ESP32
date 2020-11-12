@@ -13,92 +13,28 @@
 #define I2C_SDA 13
 #define I2C_SCL 15
 
-#define NEOPIXEL_PIN 14
-
 #define VS_XCS    26 // Control Chip Select Pin (for accessing SPI Control/Status registers)
 #define VS_XDCS   33 // Data Chip Select / BSYNC Pin
 #define VS_DREQ   32 // Data Request Pin: Player asks for more data
 #define SPI_SS    5 // Pin for enable SPI on some boards
 
-#define VS_RESET  25 //Reset is active low
+#define VS_RESET  25 // Reset is active low
 
-#define ESP32_BUTTON 14 //To change mode
+#define ESP32_BUTTON 14 // To change mode
 
-
-// To change mode
+//To change mode
 int mode_lightsound = 0;
 int old_value = 0;
 
-// The band
+//The band
+char instruments[15][32];
+int inst_drum = 0;
+int inst_end = 0;
 Player player;
 
 
 // I2C Init
 TwoWire I2C_BUS = TwoWire(0);
-
-int ind_global = 0;
-
-byte percussion_time_array[] =  {0, 240, 480, 480, 480, 136, 104, 240, 480, 480, 480, 136, 104,
-0, 240, 480, 480, 480, 136, 104, 240, 480, 480, 480, 136, 1784, 136,
-0, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480,
-0, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240,
-0, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784,
-0, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480,
-0, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104,
-0, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136,
-0, 1784, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480,
-0, 480, 480, 136, 24824, 136, 104, 240, 480, 480, 480, 136, 1784, 136,
-0, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480,
-0, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240,
-0, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784,
-0, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480,
-0, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784, 136, 104,
-0, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136,
-0, 1784, 136, 104, 240, 480, 480, 480, 136, 17144, 136, 104, 240, 480,
-0, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480, 136, 1784, 136,
-0, 104, 240, 480, 480, 480, 136, 1784, 136, 104, 240, 480, 480, 480,
-0, 136};
-byte percussion_array[] =   {76, 74, 69, 69, 69, 69, 76, 74, 69, 69, 69, 69, 76,
-76, 74, 69, 69, 69, 69, 76, 74, 69, 69, 69, 69, 69, 69,
-69, 74, 72, 69, 69, 67, 71, 64, 64, 76, 74, 69, 67, 69,
-69, 64, 69, 69, 74, 72, 69, 69, 67, 71, 64, 64, 76, 74,
-74, 69, 67, 69, 64, 69, 69, 74, 72, 69, 69, 67, 71, 64,
-64, 64, 76, 74, 69, 67, 69, 64, 69, 69, 74, 72, 69, 69,
-69, 67, 71, 64, 64, 76, 74, 69, 67, 69, 64, 69, 69, 74,
-74, 72, 69, 69, 67, 71, 64, 64, 76, 74, 69, 67, 69, 64,
-64, 69, 69, 74, 72, 69, 69, 67, 71, 64, 64, 76, 74, 69,
-69, 67, 69, 64, 69, 69, 74, 72, 69, 69, 67, 71, 64, 64,
-64, 76, 74, 69, 67, 69, 64, 69, 69, 74, 72, 69, 69, 67,
-67, 71, 64, 64, 76, 74, 69, 67, 69, 64, 69, 69, 74, 72,
-72, 69, 69, 67, 71, 64, 64, 76, 74, 69, 67, 69, 64, 69,
-69, 69, 74, 72, 69, 69, 67, 71, 64, 64, 76, 74, 69, 67,
-67, 69, 64, 69, 69, 74, 72, 69, 69, 67, 71, 64, 64, 76,
-76, 74, 69, 67, 69, 64, 69, 69, 74, 72, 69, 69, 67, 71,
-71, 64, 64, 76, 74, 69, 67, 69, 64, 69, 69, 74, 72, 69,
-69, 69, 67, 71, 64, 64, 76, 74, 69, 67, 69, 64, 69, 69,
-69, 74, 72, 69, 69, 67, 71, 64, 64, 76, 74, 69, 67, 69,
-69, 64};
-
-byte percussion_velocity_array[] = {127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
-127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120,
-120, 120};
 /**************************************************************************/
 
 // Based on https://gist.github.com/microtherion/2636608 (MP3_Shield_RealtimeMIDI.ino from Matthias Neeracher)
@@ -180,7 +116,6 @@ void VS1053_Init_SPI_MIDI(){
 
 // define MIDI channel messages
 // See http://www.vlsi.fi/fileadmin/datasheets/vs1053.pdf Pg 31
-#define VS1053_BANK_DEFAULT 0x00 // default bank
 #define VS1053_BANK_DRUMS1 0x78  // drums bank (unnecessary?)
 #define VS1053_BANK_DRUMS2 0x7F  // drums bank (unnecessary?)
 #define VS1053_BANK_MELODY 0x79  // melodic bank
@@ -202,7 +137,6 @@ void VS1053_Init_SPI_MIDI(){
 #define MIDI_CHAN_BANK 0x00    // calling in the default bank?
 #define MIDI_CHAN_VOLUME 0x07  // channel volume
 #define MIDI_CHAN_PROGRAM 0xC0 // program (not sure exactly what this does)
-#define MIDI_CHAN_PITCH_WHEEL 0xE0 //pitch wheel
 
 
 /*End VS1053 */
@@ -296,11 +230,99 @@ void setup() {
   midiSetChannelBank(0, VS1053_BANK_MELODY); // sets melody channel for MIDI board
   midiSetInstrument(0, VS1053_GM1_CLARINET); // sets clarinet sound for MIDI instrument
   midiSetChannelVolume(0, 127);              // sets volume -- able to change volume
-  player.add_instrument("/synth_1.inst");
-  player.add_instrument("/synth_2.inst");
-  player.add_instrument("/synth_3.inst");
-  player.add_instrument("/synth_4.inst");
-  player.add_drums("/percussion.inst");
+  read_songs();
+
+ for(int i=0; i < inst_drum; i++){
+  player.add_instrument(instruments[i]);
+ }
+ for(int i=inst_drum; i < inst_end; i++){
+  player.add_drums(instruments[i]);
+ }
+ 
+}
+
+void read_songs(){
+    //Reading file
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+
+  File songs = SPIFFS.open("/songs");
+  if (!songs) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+  char buffer[180];
+  int l = 0;
+  while (songs.available()) {
+   l = songs.readBytesUntil('\n', buffer, sizeof(buffer));
+   Serial.println(l);
+   buffer[l] = 0;
+   Serial.println(buffer);
+   break;
+   }
+   songs.close();
+   if (!SPIFFS.begin(true)) {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+  }
+   int size_path = l + sizeof("//conf");
+   char path_conf[size_path] = "/";
+   strcat(path_conf, buffer);
+   strcat(path_conf, "/conf");
+      Serial.println(path_conf);
+      File conf = SPIFFS.open(path_conf);
+  if (!conf) {
+    Serial.println("Failed to open file for reading");
+    return;
+  }
+    char buffer2[180];
+  while (conf.available()) {
+   int ll = conf.readBytesUntil('\n', buffer2, sizeof(buffer2));
+   buffer2[ll] = 0;
+   Serial.println(buffer2);
+
+   if(strcmp(buffer2, "[melody]") == 0){
+       ll = conf.readBytesUntil('\n', buffer2, sizeof(buffer2));
+       buffer2[ll] = 0;
+    while (strcmp(buffer2, "[drums]") != 0 && conf.available()) {
+       Serial.print("Adding: ");
+       strcat(instruments[inst_drum], "/");
+       strcat(instruments[inst_drum], buffer);
+       strcat(instruments[inst_drum], "/");
+       strcat(instruments[inst_drum], buffer2);
+       Serial.println(instruments[inst_drum]);
+       strcat(instruments[inst_end], ".inst");
+       inst_end++;
+       inst_drum++;
+       ll = conf.readBytesUntil('\n', buffer2, sizeof(buffer2));
+       buffer2[ll] = 0;
+      
+    }
+   }
+
+   if(strcmp(buffer2, "[drums]") == 0){
+
+    do{
+       ll = conf.readBytesUntil('\n', buffer2, sizeof(buffer2));
+       buffer2[ll] = 0;
+       Serial.print("Adding: ");    
+       strcat(instruments[inst_end], "/");   
+       strcat(instruments[inst_end], buffer);
+       strcat(instruments[inst_end], "/");
+       strcat(instruments[inst_end], buffer2);
+       strcat(instruments[inst_end], ".inst");
+       Serial.println(instruments[inst_end]);
+       inst_end++;
+    }while (conf.available()) ;
+    
+   }
+   
+   }
+   conf.close();
+
+
+  
 }
 
 /**************************************************************************/
@@ -525,35 +547,6 @@ void advancedPlayNoteBending(float lvl, int delta_trash) {
   }
   file.close();
   }
-
-
-  //midiSetChannelBank(0, VS1053_BANK_DRUMS2);
-  //midiSetInstrument(0, 38);
-  
-  //midiNoteOn(0, percussion_array[ind_global], percussion_velocity_array[ind_global]);
-
-
-
-
-  //#midiNoteOn(0, drums[ind_drum], 127);
-    
-
-
-  //if (lvl > -1){
-  //midiSetChannelBank(0, VS1053_BANK_MELODY);
-  //midiSetInstrument(0, 27);
-  //if (synth_2_array[ind_global] != 0)
-  //midiNoteOn(0, percussion_array[ind_global], percussion_velocity_array[ind_global]);
-  //midiSetInstrument(0, 55);
-  //if (array2[ind_global] != 0)
-  //  midiNoteOn(0, array2[ind_global], 50);
-  //}
-
-  //delay(10);
-  //midiNoteOff(0, percussion_array[ind_global], 0);
-  //delay(percussion_time_array[ind_global + 1]);
-  //midiNoteOff(0, percussion_array[ind_global], 0);
-  //ind_global++;
 }
 
 
@@ -612,7 +605,7 @@ void midiNoteOn(byte channel, byte note, byte attack_velocity) {
   if (channel > 15) return;
   if (note > 127) return;
   if (attack_velocity > 127) return;
-  talkMIDI( (0x90 | channel), note, attack_velocity);
+  talkMIDI( (MIDI_NOTE_ON | channel), note, attack_velocity);
 }
 
 //Send a MIDI note-off message.  Like releasing a piano key
@@ -620,7 +613,7 @@ void midiNoteOff(byte channel, byte note, byte release_velocity) {
   if (channel > 15) return;
   if (note > 127) return;
   if (release_velocity > 127) return;
-  talkMIDI( (0x80 | channel), note, release_velocity);
+  talkMIDI( (MIDI_NOTE_OFF | channel), note, release_velocity);
 }
 
 void midiSetInstrument(byte chan, byte inst) {
@@ -678,8 +671,6 @@ void oldAdvancedPlayNoteBending(float lvl) {
     delayTime = 1000/lvl;
     delayTimeInt = round(delayTime);
     
-    //talkMIDI(0xB0, 0, VS1053_BANK_DRUMS1); //Bank select: drums
-    //talkMIDI(0xC0, VS1053_GM1_SQUARE_CLICK, 0); //Set instrument number
     midiSetChannelBank(0, VS1053_BANK_DRUMS1);
     midiSetInstrument(0, VS1053_GM1_SQUARE_CLICK);
 
@@ -734,8 +725,6 @@ void oldAdvancedPlayNoteBending(float lvl) {
       }
 
       //play new note with bend
-      //talkMIDI(0xB0, 0, VS1053_BANK_MELODY);
-      //talkMIDI(0xC0, VS1053_GM1_CLARINET, 0);
       midiSetChannelBank(0, VS1053_BANK_MELODY);
       midiSetInstrument(0, VS1053_GM1_CLARINET);
       midiNoteOn(0, nInt, 100);
@@ -775,8 +764,6 @@ void oldAdvancedPlayNoteBending(float lvl) {
       
       midiSetChannelBank(0, VS1053_BANK_MELODY);
       midiSetInstrument(0, VS1053_GM1_FLUTE);
-      //talkMIDI(0xB0, 0, VS1053_BANK_MELODY);
-      //talkMIDI(0xC0, VS1053_GM1_FLUTE, 0);
       midiNoteOn(0, nHighInt, 62);
       pitchBendChange(0,decMapHigh);
       delay(500);
@@ -795,10 +782,8 @@ void oldAdvancedPlayNoteBending(float lvl) {
         midiNoteOff(0, prevNote, 62);
       }
 
-    //midiSetChannelBank(0, VS1053_BANK_MELODY);
-    //midiSetInstrument(0, VS1053_GM1_ACOUSTICBASS);
-    talkMIDI(0xB0, 0, VS1053_BANK_MELODY);
-    talkMIDI(0xC0, VS1053_GM1_ACOUSTICBASS, 0);
+    midiSetChannelBank(0, VS1053_BANK_MELODY);
+    midiSetInstrument(0, VS1053_GM1_ACOUSTICBASS);
 
     midiNoteOn(0, 90, 88);
     pitchBendChange(0,8192);

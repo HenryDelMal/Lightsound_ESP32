@@ -27,8 +27,8 @@ class Player
         uint32_t _time_total;
         uint8_t _total_inst;
         uint8_t _total_drums;
-        Instrument instruments[4];
-        Instrument drums[1];
+        Instrument instruments[15];
+        Instrument drums[15];
         void _heating(int delta_trash);
         float _mapfloat(float x, float in_min, float in_max, float out_min, float out_max);
 };

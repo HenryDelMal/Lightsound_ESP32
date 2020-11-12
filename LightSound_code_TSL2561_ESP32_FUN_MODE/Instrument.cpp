@@ -16,6 +16,10 @@
 
 #define VS_RESET  25 //Reset is active low
 
+#define VS1053_BANK_DRUMS1 0x78  // drums bank (unnecessary?)
+#define VS1053_BANK_DRUMS2 0x7F  // drums bank (unnecessary?)
+#define VS1053_BANK_MELODY 0x79  // melodic bank
+
 // more channel messages
 #define MIDI_NOTE_ON  0x90     // note on
 #define MIDI_NOTE_OFF 0x80     // note off
@@ -58,6 +62,13 @@ Instrument::Instrument(char* file_name, uint8_t type, int id)
     Serial.print(_id);
     Serial.print(", Instrument: ");
     Serial.println(_instrument);
+   if (_type_instrument == 0) {
+    amidiSetChannelBank(_channel, VS1053_BANK_MELODY);
+  }
+  else
+    amidiSetChannelBank(_channel, VS1053_BANK_DRUMS1);
+
+  amidiSetInstrument(_channel, _instrument);
   }
 
   next_note();
@@ -99,6 +110,11 @@ TNVD Instrument::next_note()
 
 void Instrument::play(uint32_t time_total, float lvl)
 {
+  Serial.println();
+  Serial.println(_id);
+  Serial.println(_instrument);
+  Serial.println(_channel);
+  Serial.println(current.note);
   int del_vel = lvl;
   //Serial.print("En ");
   //Serial.print(_id);
@@ -108,13 +124,7 @@ void Instrument::play(uint32_t time_total, float lvl)
   //Serial.println(time_current);
   if (time_total == time_current) {
     do {
-      if (_type_instrument == 0) {
-        amidiSetChannelBank(_channel, 0x79);
-      }
-      else
-        amidiSetChannelBank(_channel, 0x78);
 
-      amidiSetInstrument(_channel, _instrument);
       int vel = current.velocity - del_vel;
       vel = vel > 0 ? vel : 0;
       if (current.type == 1)
@@ -127,17 +137,13 @@ void Instrument::play(uint32_t time_total, float lvl)
 
 
 // definition for MIDI instrument function
-void Instrument::amidiSetInstrument(uint8_t chan, uint8_t inst) {
-  if (chan > 15) return;
+void Instrument::amidiSetInstrument(byte chan, byte inst) {
   inst --; // page 32 has instruments starting with 1 not 0 :(
-  if (inst > 127) return;
-
-  sendMIDI(MIDI_CHAN_PROGRAM | chan);
-  sendMIDI(inst);
+  talkMIDI(MIDI_CHAN_PROGRAM | chan, inst, 0);
 }
 
 // definition for MDID volume function
-void Instrument::amidiSetChannelVolume(uint8_t chan, uint8_t vol) {
+void Instrument::amidiSetChannelVolume(byte chan, byte vol) {
   if (chan > 15) return;
   if (vol > 127) return;
 
@@ -147,29 +153,28 @@ void Instrument::amidiSetChannelVolume(uint8_t chan, uint8_t vol) {
 }
 
 // definition for MIDI bank function (i.e. default v.s. drums v.s. melodic?)
-void Instrument::amidiSetChannelBank(uint8_t chan, uint8_t bank) {
-  if (chan > 15) return;
-  if (bank > 127) return;
+void Instrument::amidiSetChannelBank(byte chan, byte bank) {
 
-  sendMIDI(MIDI_CHAN_MSG | chan);
-  sendMIDI((uint8_t)MIDI_CHAN_BANK);
-  sendMIDI(bank);
+  //sendMIDI((uint8_t)MIDI_CHAN_BANK);
+  //sendMIDI();
+  talkMIDI(MIDI_CHAN_MSG | chan, 0, bank); 
+
 }
 
 // definition for MIDI "note on" function
-void Instrument::amidiNoteOn(uint8_t chan, uint8_t n, uint8_t vel) {
+void Instrument::amidiNoteOn(byte chan, byte n, byte vel) {
   if (chan > 15) return;
   if (n > 127) return;
   if (vel > 127) return;
-  talkMIDI( (0x90 | chan), n, vel);
+  talkMIDI( (MIDI_NOTE_ON | chan), n, vel);
 }
 
 // definition for MIDI "note off" function
-void Instrument::amidiNoteOff(uint8_t chan, uint8_t n, uint8_t vel) {
+void Instrument::amidiNoteOff(byte chan, byte n, byte vel) {
   if (chan > 15) return;
   if (n > 127) return;
   if (vel > 127) return;
-  talkMIDI( (0x80 | chan), n, vel);
+  talkMIDI( (MIDI_NOTE_OFF | chan), n, vel);
 }
 
 void Instrument::sendMIDI(byte data)

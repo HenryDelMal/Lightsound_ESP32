@@ -12,7 +12,7 @@
 
 Player::Player()
 {
-    _fact = 1.04;
+    _fact = 1.04; //0.7; //1.04
     _time_total = 0;
     _total_inst = 0;
     _frozen = false;
