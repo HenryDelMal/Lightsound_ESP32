@@ -23,6 +23,7 @@ class Instrument
 {
     public:
         uint32_t time_current; 
+        bool finish;
         TNVD current;
         Instrument();
         Instrument(char* file_name, uint8_t type, int id);

@@ -500,53 +500,7 @@ void advancedPlayNoteBending(float lvl, int delta_trash) {
   }
   else
      oldAdvancedPlayNoteBending(lvl);
-  if (1==0){
-  if(!SPIFFS.begin(true)){
-    Serial.println("An Error has occurred while mounting SPIFFS");
-    return;
-  }
-  
-  File file = SPIFFS.open("/synth_1.inst");
-  if(!file){
-    Serial.println("Failed to open file for reading");
-    return;
-  }
-  char dataArray[2];
-  char s[2];
-  byte type;
-  byte note;
-  byte velocity;
-  int delta = 0;
-  float fact = 1.04;
-  Serial.println("File Content:");
-  while(file.available()){
-    do{
-      file.readBytes(dataArray, 1);
-      type = (byte)dataArray[0];
-      file.readBytes(dataArray, 1);
-      note = (byte)dataArray[0];
-      file.readBytes(dataArray, 1);
-      velocity = (byte)dataArray[0];
-      file.readBytes(dataArray, 2);
-      delta = ((byte)dataArray[0]) + ((byte)dataArray[1] << 8 );
-      Serial.print(type);
-      Serial.print(", ");
-      Serial.print(note);
-      Serial.print(", ");  
-      Serial.print(velocity);
-      Serial.print(", ");
-      Serial.println(delta);
-      delay((int)(delta * fact));
-      midiSetChannelBank(0, VS1053_BANK_MELODY);
-      midiSetInstrument(0, 27);
-      if (type == 1)
-          midiNoteOn(0, note, velocity);
-      else
-          midiNoteOff(0, note, velocity);
-    }while(delta == 0);
-  }
-  file.close();
-  }
+
 }
 
 

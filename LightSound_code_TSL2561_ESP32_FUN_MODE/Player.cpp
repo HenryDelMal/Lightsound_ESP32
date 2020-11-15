@@ -12,7 +12,7 @@
 
 Player::Player()
 {
-    _fact = 1.04; //0.7; //1.04
+    _fact = 0.65;//0.65; //0.7; //1.04
     _time_total = 0;
     _total_inst = 0;
     _frozen = false;
@@ -67,33 +67,37 @@ void Player::play(float lvl, int delta_trash)
       Serial.println(lvl);
     
   
-      uint32_t delta = instruments[0].time_current - _time_total;
+      uint32_t delta = 500;
       uint32_t delta_for;
       unsigned long time1, time2;
       time1 = millis();
       for (int i = 0; i < _total_inst; ++i)
       {
+          if (instruments[i].finish)
+            continue;
           delta_for =  instruments[i].time_current - _time_total;
-          //Serial.print("Delta_for: ");
-          //Serial.print(_time_total);
-          //Serial.print(" - ");
-          //Serial.print(instruments[i].time_current);
-          //Serial.print(" = ");
-          //Serial.println(delta_for);
-          if(delta > delta_for && (instruments[i].time_current == 0 || delta_for > 0))
+          Serial.print("Delta_for: ");
+          Serial.print(instruments[i].time_current);
+          Serial.print(" - ");
+          Serial.print(_time_total);
+          Serial.print(" = ");
+          Serial.println(delta_for);
+          if(delta > delta_for)
               delta = delta_for;
       }
   
       for (int i = 0; i < _total_drums; ++i)
       {
+          if (drums[i].finish)
+            continue;
           delta_for = drums[i].time_current - _time_total;
-          //Serial.print("Delta_for: ");
-          //Serial.print(_time_total);
-          //Serial.print(" - ");
-          //Serial.print(instruments[i].time_current);
-          //Serial.print(" = ");
-          //Serial.println(delta_for);
-          if(delta > delta_for && delta_for > 0)
+          Serial.print("Delta_for: ");
+          Serial.print(drums[i].time_current);
+          Serial.print(" - ");
+          Serial.print(_time_total);
+          Serial.print(" = ");
+          Serial.println(delta_for);
+          if(delta > delta_for)
               delta = delta_for;
       }
       _frozen = true;

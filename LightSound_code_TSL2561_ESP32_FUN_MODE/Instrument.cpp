@@ -39,6 +39,7 @@ Instrument::Instrument(char* file_name, uint8_t type, int id)
 {
   _id = id;
   time_current = 0;
+  finish = false;
   _type_instrument = type;
   if (!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS");
@@ -92,13 +93,15 @@ TNVD Instrument::next_note()
     uint32_t delta = ((byte)dataArray[0]) + ((byte)dataArray[1] << 8 );
 
     current = {type, note, velocity, delta};
+    Serial.println(delta);
     time_current += current.delta;
   }
   else {
     //Serial.print("Bye ");
-    //Serial.println(_id);
+    //Serial.println(_id);≤
     file.close();
-    current = { -1, -1, -1, -1};
+    finish = true;
+    current = { 255, 255, 255, time_current};
   }
   //Serial.print("En ");
   //Serial.print(_id);
@@ -110,27 +113,24 @@ TNVD Instrument::next_note()
 
 void Instrument::play(uint32_t time_total, float lvl)
 {
-  Serial.println();
-  Serial.println(_id);
-  Serial.println(_instrument);
-  Serial.println(_channel);
-  Serial.println(current.note);
   int del_vel = lvl;
-  //Serial.print("En ");
-  //Serial.print(_id);
-  //Serial.print(" para el tiempo total: ");
-  //Serial.print(time);
-  //Serial.print(" se tiene tiempo actual: ");
-  //Serial.println(time_current);
   if (time_total == time_current) {
     do {
 
-      int vel = current.velocity - del_vel;
+      int vel = current.velocity- del_vel;
       vel = vel > 0 ? vel : 0;
-      if (current.type == 1)
+      if (current.type == 0 && current.note == 0 && current.velocity == 0){
+        Serial.println("HEREEEEEEEEEEEEEEEEEEEEEEEEEE");
+      }
+      else if (current.type == 1)
         amidiNoteOn(_channel, current.note, vel);
       else
         amidiNoteOff(_channel, current.note, vel);
+      Serial.println("");
+      Serial.println("Playing");
+      Serial.print(_channel); Serial.print(" "); Serial.print(current.type); Serial.print(" "); Serial.print(current.note); Serial.print(" ");
+      if (finish)
+        break;
     } while (next_note().delta == 0);
   }
 }
